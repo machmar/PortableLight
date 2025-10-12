@@ -1,0 +1,45 @@
+A few values of curents and voltages to do math from
+
+format:
+LED current, Resistor drop, FET drop, Supply voltage
+
+ 70.36mA  23.910mV 48.940mV 2.9741V
+114.28mA   44.13mV  56.11mV 3.1257V
+   217mA   70.44mV  58.36mV 3.2640V
+   333mA   108.5mV  55.26mV 3.4102V
+   
+The FET voltage drop is dependant on both the current and the VGS
+The VGS and the LED current is dependant on the VCC
+I wont use it then, I'll take the resistor voltage instead
+
+The resistor values work out to:
+0.339823Ohm
+0.386156Ohm
+0.324608Ohm
+0.325825Ohm
+so I'll take it as a 330mOhm resistor
+
+Given that it is in series after the transistor (to maximize the Vgs) I need to
+measure twice each time, once for each side of the resistor.
+
+When the transistor switches on, I'll measure the current (which will be over
+the 300mA limit), and from how much it is over I'll set the PWM.
+Refference voltage is 0.55V:
+    At 300mA we have 99mV, that's 0.18 of the refference = 184 ADC value
+    To get some normal value, I'll prepare it for an amp:
+    At 1amp we get 330mV, that's an ADC value of 614
+    
+If it's at 1 amp when switched on, it means that we want to set the PWM to 30%
+to get to our target 300mA. The Timer A is 16bit :
+    At 1 amp we measure a value of 614, we want to set the PWM to 30%, that is
+    19661
+    At 0.5 amps we measure a value of 307, we set the PWM to 60% which is 39321
+    At 0.3 amps we measure a value of 184, we set the PWM to 100% which is 65535
+    Because I'm lazy, I'll use the map function:
+        in: 614, 184, out: 19661, 65535,    it has to be clamped from 5k to 65k
+        
+The ADC has to trigger some number of samples after the PWM turns on, say like
+1k, I'll probably use another timer to do that. 
+    
+
+ 
