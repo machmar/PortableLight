@@ -32,11 +32,11 @@ Refference voltage is 0.55V:
 If it's at 1 amp when switched on, it means that we want to set the PWM to 30%
 to get to our target 300mA. The Timer A is 16bit :
     At 1 amp we measure a value of 614, we want to set the PWM to 30%, that is
-    19661
-    At 0.5 amps we measure a value of 307, we set the PWM to 60% which is 39321
-    At 0.3 amps we measure a value of 184, we set the PWM to 100% which is 65535
+    307
+    At 0.5 amps we measure a value of 307, we set the PWM to 60% which is 614
+    At 0.3 amps we measure a value of 184, we set the PWM to 100% which is 1023
     Because I'm lazy, I'll use the map function:
-        in: 614, 184, out: 19661, 65535,    it has to be clamped from 5k to 65k
+        in: 614, 184, out: 307, 1023,    it has to be clamped from 50 to 1023
         
 The ADC has to trigger some number of samples after the PWM turns on, say like
 1k, I'll probably use another timer to do that. 

@@ -1,5 +1,6 @@
 PA6 shunt high side
 PA7 shunt low side
 PA2 FET gate
+PA3 POT
 
       
