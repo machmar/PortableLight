@@ -14,8 +14,9 @@
 #define LED_PWM(x) TCA0.SINGLE.CMP0 = x
 
 uint16_t min(uint16_t a, uint16_t b);
+void SetPWM(uint16_t val);
 
-uint16_t potVal = 0;
+uint16_t pot_val = 0;
 
 int main(void)
 {
@@ -47,11 +48,11 @@ int main(void)
     {
 		if (~ADC0.COMMAND & ADC_STCONV_bm)
 		{
-			potVal = ADC0.RES;
+			pot_val = ADC0.RES;
 			ADC0.COMMAND = ADC_STCONV_bm;
 		}
 		
-		LED_PWM(min(potVal, 600));
+		SetPWM(mapClamp(pot_val, 5, 1023, 0, 600));		
     }
 }
 
@@ -59,6 +60,20 @@ uint16_t min(uint16_t a, uint16_t b)
 {
 	if (a > b) return b;
 	return a;
+}
+
+void SetPWM(uint16_t val)
+{
+	if (val > 0)
+	{
+		TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm | TCA_SINGLE_OVF_bm;
+		LED_PWM(val);
+	}
+	else
+	{
+		TCA0.SINGLE.INTCTRL = 0;
+		PORTA.OUTCLR = 1 << 2;
+	}
 }
 
 ISR(TCA0_CMP0_vect)
