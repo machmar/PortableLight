@@ -11,6 +11,11 @@
 #include <util/delay.h>
 #include "MapMath/MapMath.h"
 
+#define LED_PWM(x) TCA0.SINGLE.CMP0 = x
+
+uint16_t min(uint16_t a, uint16_t b);
+
+uint16_t potVal = 0;
 
 int main(void)
 {
@@ -24,7 +29,15 @@ int main(void)
 	TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
 	TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm | TCA_SINGLE_OVF_bm;
 	TCA0.SINGLE.PER = 0x3FF;
-	TCA0.SINGLE.CMP0 = 0x3FF;
+	LED_PWM(2);
+	
+	VREF.CTRLA = VREF_ADC0REFSEL_0V55_gc;
+	VREF.CTRLB = VREF_ADC0REFSEL_0_bm;
+	
+	ADC0.CTRLA = ADC_RUNSTBY_bm | ADC_ENABLE_bm;
+	ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
+	ADC0.CTRLD = ADC_INITDLY_DLY16_gc;
+	ADC0.MUXPOS = ADC_MUXPOS_AIN3_gc;
 	
     PORTA.DIRSET = 1 << 2;
 	
@@ -32,8 +45,20 @@ int main(void)
 	
     while (1) 
     {
-		_delay_ms(1000);
+		if (~ADC0.COMMAND & ADC_STCONV_bm)
+		{
+			potVal = ADC0.RES;
+			ADC0.COMMAND = ADC_STCONV_bm;
+		}
+		
+		LED_PWM(min(potVal, 600));
     }
+}
+
+uint16_t min(uint16_t a, uint16_t b)
+{
+	if (a > b) return b;
+	return a;
 }
 
 ISR(TCA0_CMP0_vect)
