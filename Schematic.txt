@@ -1,6 +1,6 @@
-PA6 shunt high side
-PA7 shunt low side
-PA2 FET gate
-PA3 POT
+PA6 AIN6 shunt high side
+PA7 AIN7 shunt low side
+PA2      FET gate
+PA3 AIN3 POT
 
       

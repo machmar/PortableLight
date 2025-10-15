@@ -9,14 +9,29 @@
 #include <avr/cpufunc.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include <stdint.h>
 #include "MapMath/MapMath.h"
 
 #define LED_PWM(x) TCA0.SINGLE.CMP0 = x
 
 uint16_t min(uint16_t a, uint16_t b);
 void SetPWM(uint16_t val);
+void ADCProcess();
+void ADCStartConversion();
 
-uint16_t pot_val = 0;
+uint16_t pot_val_ = 0;
+
+enum AdcSource {
+	ADC_SOURCE_POT,
+	ADC_SOURCE_SHUNT_BEFORE,
+	ADC_SOURCE_SHUNT_AFTER,
+	ADC_SOURCE_SUPPLY,
+	ADC_SOURCE_COUNT
+	} AdcSource_t;
+
+AdcSource_t current_ADC_source_ = ADC_SOURCE_POT;
+bool ADC_prepared_ = false;
+uint16_t ADC_result_[ADC_SOURCE_COUNT] = {0};
 
 int main(void)
 {
@@ -32,13 +47,22 @@ int main(void)
 	TCA0.SINGLE.PER = 0x3FF;
 	LED_PWM(2);
 	
+	TCB0.CTRLA = TCB_CLKSEL_CLKTCA_gc | TCB_ENABLE_bm;
+	TCB0.CTRLB = TCB_CNTMODE_SINGLE_gc;
+	TCB0.EVCTRL = TCB_CAPTEI_bm; // the timer is started by making a pulse at its event channel
+	
+	
 	VREF.CTRLA = VREF_ADC0REFSEL_0V55_gc;
 	VREF.CTRLB = VREF_ADC0REFSEL_0_bm;
 	
 	ADC0.CTRLA = ADC_RUNSTBY_bm | ADC_ENABLE_bm;
 	ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
 	ADC0.CTRLD = ADC_INITDLY_DLY16_gc;
+	ADC0.EVCTRL = ADC_STARTEI_bm;
+	ADC0.INTCTRL = ADC_RESRDY_bm;
 	ADC0.MUXPOS = ADC_MUXPOS_AIN3_gc;
+	
+	// basically, TCA overflows, triggers TCB, TCB counts up to 5, triggers ADC, that triggers when it's ready, cycle repeats. I somewhat setup the peripherals for it but I haven't done the actual routing
 	
     PORTA.DIRSET = 1 << 2;
 	
@@ -48,11 +72,11 @@ int main(void)
     {
 		if (~ADC0.COMMAND & ADC_STCONV_bm)
 		{
-			pot_val = ADC0.RES;
+			pot_val_ = ADC0.RES;
 			ADC0.COMMAND = ADC_STCONV_bm;
 		}
 		
-		SetPWM(mapClamp(pot_val, 5, 1023, 0, 600));		
+		SetPWM(mapClamp(pot_val_, 5, 1023, 0, 600));		
     }
 }
 
@@ -74,6 +98,74 @@ void SetPWM(uint16_t val)
 		TCA0.SINGLE.INTCTRL = 0;
 		PORTA.OUTCLR = 1 << 2;
 	}
+}
+
+void ADCProcess()
+{
+	if (~ADC0.COMMAND & ADC_STCONV_bm && !ADC_prepared_) //the ADC isn't doing anything
+	{
+		//let's save the value and prep next measurement
+		ADC_result_[(uint8_t)current_ADC_source_] = ADC0.RES;
+		
+		switch (current_ADC_source_)
+		{
+			case ADC_SOURCE_POT:
+				current_ADC_source_ = ADC_SOURCE_SHUNT_BEFORE;
+				break;
+			
+			case ADC_SOURCE_SHUNT_BEFORE:
+				current_ADC_source_ = ADC_SOURCE_SHUNT_AFTER;
+				break;
+				
+			case ADC_SOURCE_SHUNT_AFTER:
+				current_ADC_source_ = ADC_SOURCE_POT;
+				break;
+				
+			default:
+				current_ADC_source_ = ADC_SOURCE_POT;
+		}
+		
+		// now that it is changed to the next value, prepare the ADC for the measurement
+		switch (current_ADC_source_)
+		{
+			case ADC_SOURCE_POT:
+				ADC0.MUXPOS = ADC_MUXPOS_AIN3_gc;
+				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
+				break;
+			
+			case ADC_SOURCE_SHUNT_BEFORE:
+				ADC0.MUXPOS = ADC_MUXPOS_AIN7_gc;
+				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_INTREF_gc;
+				break;
+				
+			case ADC_SOURCE_SHUNT_AFTER:
+				ADC0.MUXPOS = ADC_MUXPOS_AIN6_gc;
+				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_INTREF_gc;
+				break;
+				
+			case ADC_SOURCE_SUPPLY:
+				ADC0.MUXPOS = ADC_MUXPOS_INTREF_gc;
+				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
+				break;
+			
+		}
+		
+		ADC_prepared_ = true;
+	}
+}
+
+void ADCStartConversion() // this might not actually even be used, make an interrupt on conversion finish, the ADC will be triggered through the event system
+{
+	if (~ADC0.COMMAND & ADC_STCONV_bm)
+	{
+		ADC0.COMMAND = ADC_STCONV_bm;
+		ADC_prepared_ = false;
+	}
+}
+
+ISR(ADC0_RESRDY_vect)
+{
+	ADC_prepared_ = false;
 }
 
 ISR(TCA0_CMP0_vect)
