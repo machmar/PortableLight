@@ -10,6 +10,7 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "MapMath/MapMath.h"
 
 #define LED_PWM(x) TCA0.SINGLE.CMP0 = x
@@ -21,7 +22,7 @@ void ADCStartConversion();
 
 uint16_t pot_val_ = 0;
 
-enum AdcSource {
+typedef enum {
 	ADC_SOURCE_POT,
 	ADC_SOURCE_SHUNT_BEFORE,
 	ADC_SOURCE_SHUNT_AFTER,
@@ -50,7 +51,12 @@ int main(void)
 	TCB0.CTRLA = TCB_CLKSEL_CLKTCA_gc | TCB_ENABLE_bm;
 	TCB0.CTRLB = TCB_CNTMODE_SINGLE_gc;
 	TCB0.EVCTRL = TCB_CAPTEI_bm; // the timer is started by making a pulse at its event channel
+	TCB0.CCMP = 5;
 	
+	EVSYS.SYNCCH0 = EVSYS_SYNCCH0_TCA0_OVF_LUNF_gc;
+	EVSYS.ASYNCUSER0 = EVSYS_ASYNCUSER0_SYNCCH0_gc;
+	EVSYS.SYNCCH1 = EVSYS_SYNCCH0_TCB0_gc;
+	EVSYS.ASYNCUSER1 = EVSYS_ASYNCUSER1_SYNCCH1_gc;
 	
 	VREF.CTRLA = VREF_ADC0REFSEL_0V55_gc;
 	VREF.CTRLB = VREF_ADC0REFSEL_0_bm;
@@ -147,19 +153,13 @@ void ADCProcess()
 				ADC0.MUXPOS = ADC_MUXPOS_INTREF_gc;
 				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
 				break;
+				
+			default:
+				break; // make the compiler not cry
 			
 		}
 		
 		ADC_prepared_ = true;
-	}
-}
-
-void ADCStartConversion() // this might not actually even be used, make an interrupt on conversion finish, the ADC will be triggered through the event system
-{
-	if (~ADC0.COMMAND & ADC_STCONV_bm)
-	{
-		ADC0.COMMAND = ADC_STCONV_bm;
-		ADC_prepared_ = false;
 	}
 }
 
