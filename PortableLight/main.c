@@ -45,6 +45,7 @@ int main(void)
 	TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm;
 	TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
 	TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm | TCA_SINGLE_OVF_bm;
+	TCA0.SINGLE.DBGCTRL = TCA_SINGLE_DBGRUN_bm;
 	TCA0.SINGLE.PER = 0x3FF;
 	LED_PWM(2);
 	
@@ -75,14 +76,9 @@ int main(void)
 	sei();
 	
     while (1) 
-    {
-		if (~ADC0.COMMAND & ADC_STCONV_bm)
-		{
-			pot_val_ = ADC0.RES;
-			ADC0.COMMAND = ADC_STCONV_bm;
-		}
-		
-		SetPWM(mapClamp(pot_val_, 5, 1023, 0, 600));		
+    {		
+		ADCProcess();
+		SetPWM(mapClamp(ADC_result_[ADC_SOURCE_POT], 5, 1023, 0, 600));		
     }
 }
 
@@ -137,21 +133,25 @@ void ADCProcess()
 			case ADC_SOURCE_POT:
 				ADC0.MUXPOS = ADC_MUXPOS_AIN3_gc;
 				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
+				EVSYS.SYNCCH0 = EVSYS_SYNCCH0_TCA0_CMP0_gc;
 				break;
 			
 			case ADC_SOURCE_SHUNT_BEFORE:
 				ADC0.MUXPOS = ADC_MUXPOS_AIN7_gc;
 				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_INTREF_gc;
+				EVSYS.SYNCCH0 = EVSYS_SYNCCH0_TCA0_OVF_LUNF_gc;
 				break;
 				
 			case ADC_SOURCE_SHUNT_AFTER:
 				ADC0.MUXPOS = ADC_MUXPOS_AIN6_gc;
 				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_INTREF_gc;
+				EVSYS.SYNCCH0 = EVSYS_SYNCCH0_TCA0_OVF_LUNF_gc;
 				break;
 				
 			case ADC_SOURCE_SUPPLY:
 				ADC0.MUXPOS = ADC_MUXPOS_INTREF_gc;
 				ADC0.CTRLC = ADC_PRESC_DIV32_gc | ADC_REFSEL_VDDREF_gc;
+				EVSYS.SYNCCH0 = EVSYS_SYNCCH0_TCA0_CMP0_gc;
 				break;
 				
 			default:
@@ -166,6 +166,7 @@ void ADCProcess()
 ISR(ADC0_RESRDY_vect)
 {
 	ADC_prepared_ = false;
+	ADC0.INTFLAGS = ADC_RESRDY_bm;
 }
 
 ISR(TCA0_CMP0_vect)
